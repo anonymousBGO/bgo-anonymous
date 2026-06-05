@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# IDE and OS metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local data and downloaded weights
+data/
+datasets/
+checkpoints/
+bert-base-uncased/
+*.pth
+*.pt
+*.ckpt
+*.bin
+
+# Runtime outputs and generated figures
+output/
+outputs/
+results/
+result_*.txt
+result*.txt
+new_paper_visual/
+bgo_text_visual/
+visualization/
+*.xlsx
+*.pdf
+*.log
+
+# Keep repository-provided lightweight annotations and std_eval_idx files.

@@ -1,0 +1,12 @@
+ftfy==6.1.1
+regex==2023.10.3
+numpy==1.24.4
+Pillow==9.5.0
+ruamel.yaml==0.17.32
+timm==0.6.13
+torch==2.1.0
+torchvision==0.16.0
+transformers==4.28.1
+tqdm==4.66.1
+matplotlib==3.7.5
+scikit-image==0.21.0
