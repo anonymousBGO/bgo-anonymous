@@ -1,17 +1,19 @@
 # BGO
 
-Anonymous code release for **BGO: Backward Gradient Organization for Transferable Vision-Language Attacks**.
+Anonymous code release for **BGO: Backward Gradient Organization for Transferable Vision-Language Attacks in Multimodal Search**.
 
 ## Brief Introduction
 
-Vision-language pre-training (VLP) models are widely used for image-text retrieval, but they remain vulnerable to transferable multimodal adversarial examples. Existing image-text retrieval attacks mainly strengthen the forward attack objective, while the image-side gradients produced by back-propagation are often passed directly to iterative perturbation updates.
+Image-text retrieval is an important component of multimodal search over online content, but the vision-language pre-training (VLP) models used for this task remain vulnerable to transferable adversarial examples. Existing image-text retrieval attacks mainly strengthen the forward attack objective, while the image-side gradients produced by back-propagation are often passed directly to iterative perturbation updates.
 
-BGO treats the back-propagated image-side gradient as an intermediate optimization signal that should be organized before the image update. It keeps the referenced semantic-guided forward loss construction used for retrieval attacks and adds two lightweight backward-stage modules:
+BGO treats the back-propagated image-side gradient as an intermediate optimization signal that should be organized before the image update. It combines two backward-stage modules:
 
-- **T module: Temporal Gradient Purification**, which accumulates normalized historical gradients to stabilize update directions across iterations.
-- **S module: Residual Spatial Gradient Reweighting**, which converts gradient magnitude responses into a residual soft mask for local step-size modulation while preserving the global update path.
+- **Temporal Gradient Purification (TGP)** accumulates normalized image-side gradients to attenuate iteration-specific directional variations.
+- **Residual Spatial Gradient Reweighting (RSGR)** converts the current gradient magnitude response into a positive residual mask that modulates update strengths across spatial locations while preserving the sign direction supplied by TGP.
 
-The forward stage follows the referenced SA-AET components for adversarial text generation, AET sampling, and semantic projection. The main contribution of BGO is the backward organization stage applied after the image-side gradient is obtained.
+The semantic-guided forward objective is instantiated with the adversarial-text generation, adversarial evolution-triangle sampling, and semantic projection components of SA-AET. After back-propagation, TGP and RSGR organize the resulting image-side gradient to form the adversarial-image update direction.
+
+The paper evaluates BGO on Flickr30K and MSCOCO with ALBEF, TCL, CLIP-ViT, and CLIP-CNN. It also reports a post-hoc cross-model analysis of the spatial ranking used by RSGR and an output-only evaluation of BGO-generated adversarial images on GPT-4o, Claude Sonnet 4.6, and Qwen-VL-Max.
 
 <p align="left">
     <img src="./images/framework.png" width="100%">
@@ -22,7 +24,7 @@ This repository is prepared for anonymous review. Author, affiliation, contact, 
 ## Repository Structure
 
 ```text
-BGO.py                   # BGO attacker: semantic-guided forward loss + T/S backward organization
+BGO.py                   # BGO attacker: semantic-guided forward loss + TGP/RSGR
 eval_BGO.py              # Image-text retrieval transfer evaluation entry
 SA_AET.py                # Reproduced SA-AET baseline kept for comparison
 eval_AET.py              # SA-AET baseline evaluation entry
@@ -30,7 +32,7 @@ configs/                 # Retrieval and model configuration files
 models/                  # ALBEF/CLIP/TCL-compatible model code
 data_annotation/         # Lightweight evaluation annotations
 std_eval_idx/            # Clean rank indices used to compute ASR
-refTools/, vqaTools/     # Optional evaluation utilities for downstream tasks
+refTools/, vqaTools/     # Auxiliary evaluation utilities
 images/                  # Framework figure used in the paper and README
 ```
 
@@ -50,7 +52,7 @@ visualization/
 
 ### 1. Install Dependencies
 
-Python 3.8 is recommended. The reported paper results were obtained with PyTorch 1.10.0 and CUDA 11.3; the PyTorch 2.1.0 commands are provided only for easier setup and may produce minor numerical differences. For strict reproduction of the paper environment, install the matching PyTorch 1.10.0 CUDA 11.3 wheel first and then run `pip install -r requirements.txt --no-deps`.
+Python 3.8 is recommended. The main retrieval results were obtained with PyTorch 1.10.0 and CUDA 11.3; the PyTorch 2.1.0 commands are provided for easier setup and may produce minor numerical differences. For strict reproduction of the main retrieval environment, install the matching PyTorch 1.10.0 CUDA 11.3 wheel first and then run `pip install -r requirements.txt --no-deps`.
 
 ```bash
 pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
@@ -106,7 +108,7 @@ CLIP weights are loaded by the CLIP helper and cached locally. BERT can be loade
 
 ## Transferability Evaluation
 
-By default, `--model_list` is `ALBEF,TCL,CLIP_ViT,CLIP_CNN`; adversarial examples are generated on `--source_model` and evaluated on the remaining models. To reproduce the main results in Table I, run the evaluation once for each source model:
+By default, `--model_list` is `ALBEF,TCL,CLIP_ViT,CLIP_CNN`; adversarial examples are generated on `--source_model` and evaluated on the remaining models. To reproduce the main retrieval matrix, run the evaluation once for each source model:
 
 ```text
 ALBEF
@@ -139,7 +141,7 @@ python eval_BGO.py --config ./configs/Retrieval_coco.yaml \
 
 The same commands can be repeated with `--source_model ALBEF`, `--source_model TCL`, `--source_model CLIP_ViT`, and `--source_model CLIP_CNN`. For the SA-AET baseline, run `eval_AET.py` under the same dataset, source model, checkpoint, perturbation budget, iteration number, and rank-index settings.
 
-To run all four source models used in Table I:
+To run all four source models used in the main retrieval matrix:
 
 ```bash
 for SOURCE in ALBEF TCL CLIP_ViT CLIP_CNN; do
@@ -165,7 +167,7 @@ done
 
 ## Reproducing Main Results
 
-The following table lists the BGO rows reported in Table I of the paper. Values are attack success rates on Recall@1; `TR` denotes image-to-text retrieval and `IR` denotes text-to-image retrieval.
+The following tables list the BGO rows reported in the main retrieval matrix. Values are attack success rates at Recall@1; `TR` denotes image-to-text retrieval and `IR` denotes text-to-image retrieval.
 
 ### Flickr30K
 
@@ -209,7 +211,19 @@ The following table lists the BGO rows reported in Table I of the paper. Values 
 | CLIP_CNN | CLIP_ViT | 78.06 | 82.23 |
 | CLIP_CNN | CLIP_CNN | 99.96 | 99.96 |
 
-The paper reports Table I with random seed 42. A repeated-run check is additionally reported for the representative CLIP_CNN -> CLIP_ViT setting across three random seeds.
+The paper reports the main retrieval results with random seed 42. A repeated-run check additionally evaluates the CLIP_CNN -> CLIP_ViT setting across three random seeds.
+
+## Additional Evaluations Reported in the Paper
+
+The post-hoc RSGR analysis evaluates 100 images for each of four heterogeneous source-target settings on Flickr30K and MSCOCO. Across these settings, source-ranked low-response regions contain 11.21% to 15.65% of the target-gradient magnitude, compared with 20.30% to 20.34% for equal-area shuffled regions; the mean source-target Spearman rank correlations range from 0.407 to 0.735. Target-model gradients are used only for this analysis and are not accessed during attack generation.
+
+The output-only LMM evaluation uses ALBEF as the surrogate and 100 Flickr30K images, with a perturbation budget of 16/255, a step size of 0.5/255, and 100 attack iterations. SA-AET is locally reproduced on the same image subset, target services, and evaluation protocol as BGO. The reported R@1 attack success rates are:
+
+| Attack | GPT-4o | Claude Sonnet 4.6 | Qwen-VL-Max |
+| --- | ---: | ---: | ---: |
+| No Attack | 0.0 | 0.0 | 0.0 |
+| SA-AET | 16.0 | 17.0 | 14.0 |
+| BGO | 20.0 | 22.0 | 17.0 |
 
 ## Main Parameters
 
@@ -231,7 +245,7 @@ Text-side perturbation settings are defined in `TextAttacker` in `BGO.py`; the d
 
 ## Notes for Anonymous Review
 
-- No training datasets, downloaded checkpoints, cached language-model weights, IDE files, or generated result folders are included.
+- No training datasets, downloaded checkpoints, cached language-model weights, or generated result folders are included.
 - This work does not train a new VLP model; the shared code is for attack generation and transferability evaluation.
 - The framework figure in `images/framework.png` matches the BGO method overview used in the paper.
 - Citation and contact information are intentionally withheld during review.
